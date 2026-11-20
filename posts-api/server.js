@@ -17,15 +17,15 @@ let nextId = Math.max(0, ...posts.map((post) => post.id)) + 1
 app.use(async (ctx, next) => {
   try {
     await next()
-    if (ctx.status === 404 && ctx.body === undefined) {
-      ctx.status = 404
-      ctx.body = { error: 'Route introuvable' }
-    } else if (ctx.status === 405 && ctx.body === undefined) {
-      ctx.status = 405
-      ctx.body = { error: 'Méthode non autorisée' }
+    if (ctx.status >= 400 && ctx.body === undefined) {
+      const status = ctx.status
+      ctx.status = status
+      ctx.body = {
+        error: status === 404 ? 'Route introuvable' : status === 405 ? 'Méthode non autorisée' : 'Requête invalide'
+      }
     }
   } catch (err) {
-    const status = err.status || err.statusCode || 500
+    const status = err instanceof URIError ? 400 : err.status || err.statusCode || 500
     ctx.status = status
     ctx.body = {
       error: status >= 500 ? 'Erreur interne du serveur' : err.message || 'Requête invalide'
