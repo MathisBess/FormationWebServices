@@ -44,6 +44,17 @@ app.use(
   })
 )
 
+function findPostOrThrow(ctx) {
+  const id = parsePositiveInt(ctx.params.id)
+  const post = id !== null ? posts.find((item) => item.id === id) : undefined
+
+  if (!post) {
+    ctx.throw(404, 'Post introuvable')
+  }
+
+  return post
+}
+
 router.get('/posts', (ctx) => {
   const { postId } = ctx.query
 
@@ -62,15 +73,8 @@ router.get('/posts', (ctx) => {
 })
 
 router.get('/posts/:id', (ctx) => {
-  const id = parsePositiveInt(ctx.params.id)
-  const post = id !== null ? posts.find((item) => item.id === id) : undefined
-
-  if (!post) {
-    ctx.throw(404, 'Post introuvable')
-  }
-
   ctx.status = 200
-  ctx.body = post
+  ctx.body = findPostOrThrow(ctx)
 })
 
 router.post('/posts', (ctx) => {
@@ -92,6 +96,31 @@ router.post('/posts', (ctx) => {
   ctx.status = 201
   ctx.set('Location', `/posts/${newPost.id}`)
   ctx.body = newPost
+})
+
+router.put('/posts/:id', (ctx) => {
+  const post = findPostOrThrow(ctx)
+  const error = validatePost(ctx.request.body)
+  if (error) {
+    ctx.throw(400, error)
+  }
+
+  const { postId, name, email, body } = ctx.request.body
+  Object.assign(post, { postId, name, email, body })
+  ctx.status = 200
+  ctx.body = post
+})
+
+router.patch('/posts/:id', (ctx) => {
+  const post = findPostOrThrow(ctx)
+  const error = validatePost(ctx.request.body, true)
+  if (error) {
+    ctx.throw(400, error)
+  }
+
+  Object.assign(post, ctx.request.body)
+  ctx.status = 200
+  ctx.body = post
 })
 
 router.delete('/posts/:id', (ctx) => {
