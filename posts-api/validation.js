@@ -1,74 +1,58 @@
-const ALLOWED_FIELDS = ['postId', 'name', 'email', 'body']
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-const FIELD_VALIDATORS = {
-  postId: {
-    check: (value) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 1,
-    message: 'Le champ postId doit être un entier supérieur ou égal à 1'
-  },
-  name: {
-    check: (value) => typeof value === 'string' && value.trim().length >= 1 && value.length <= 100,
-    message: 'Le champ name doit être un texte de 1 à 100 caractères'
-  },
-  email: {
-    check: (value) => typeof value === 'string' && value.length <= 100 && EMAIL_REGEX.test(value),
-    message: 'Le champ email doit être une adresse e-mail valide de 100 caractères maximum'
-  },
-  body: {
-    check: (value) => typeof value === 'string' && value.trim().length >= 1 && value.length <= 500,
-    message: 'Le champ body doit être un texte de 1 à 500 caractères'
-  }
-}
-
 function parsePositiveInt(value) {
   if (typeof value !== 'string' || !/^\d+$/.test(value)) {
     return null
   }
   const parsed = Number(value)
-  if (!Number.isSafeInteger(parsed) || parsed < 1) {
-    return null
-  }
-  return parsed
+  return Number.isInteger(parsed) && parsed >= 1 ? parsed : null
 }
 
-function validatePostPayload(payload, { partial = false } = {}) {
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    return { error: 'Le corps de la requête doit être un objet JSON' }
+function validatePost(body, isPatch = false) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return 'Le corps de la requête doit être un objet JSON'
   }
 
-  const keys = Object.keys(payload)
-  if (partial && keys.length === 0) {
-    return { error: 'Au moins un champ à modifier est requis' }
+  const allowedFields = ['postId', 'name', 'email', 'body']
+  const keys = Object.keys(body)
+
+  if (isPatch && keys.length === 0) {
+    return 'Aucun champ à modifier'
   }
 
   for (const key of keys) {
-    if (!ALLOWED_FIELDS.includes(key)) {
-      return { error: `Champ non autorisé : ${key}` }
+    if (!allowedFields.includes(key)) {
+      return `Champ non autorisé : ${key}`
     }
   }
 
-  const validated = {}
-  for (const field of ALLOWED_FIELDS) {
-    const value = payload[field]
-    if (value === undefined) {
-      if (!partial) {
-        return { error: `Le champ ${field} est obligatoire` }
-      }
-      continue
+  if (!isPatch || body.postId !== undefined) {
+    if (!Number.isInteger(body.postId) || body.postId < 1) {
+      return 'Le champ postId doit être un entier supérieur ou égal à 1'
     }
-
-    const validator = FIELD_VALIDATORS[field]
-    if (!validator.check(value)) {
-      return { error: validator.message }
-    }
-
-    validated[field] = value
   }
 
-  return { data: validated }
+  if (!isPatch || body.name !== undefined) {
+    if (typeof body.name !== 'string' || body.name.trim().length === 0 || body.name.length > 100) {
+      return 'Le champ name doit être un texte de 1 à 100 caractères'
+    }
+  }
+
+  if (!isPatch || body.email !== undefined) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (typeof body.email !== 'string' || body.email.length > 100 || !emailRegex.test(body.email)) {
+      return 'Le champ email doit être une adresse e-mail valide de 100 caractères maximum'
+    }
+  }
+
+  if (!isPatch || body.body !== undefined) {
+    if (typeof body.body !== 'string' || body.body.trim().length === 0 || body.body.length > 500) {
+      return 'Le champ body doit être un texte de 1 à 500 caractères'
+    }
+  }
+
+  return null
 }
 
 module.exports = {
   parsePositiveInt,
-  validatePostPayload
+  validatePost
 }

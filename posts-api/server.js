@@ -3,6 +3,7 @@ const path = require('path')
 const Koa = require('koa')
 const Router = require('@koa/router')
 const bodyParser = require('koa-bodyparser')
+const { parsePositiveInt, validatePost } = require('./validation')
 
 const app = new Koa()
 const router = new Router()
@@ -10,33 +11,18 @@ const router = new Router()
 const seedPath = path.join(__dirname, 'posts.seed.json')
 const rawData = fs.readFileSync(seedPath, 'utf-8')
 const posts = JSON.parse(rawData)
-
-function parsePositiveInt(value) {
-  if (typeof value !== 'string' || !/^\d+$/.test(value)) {
-    return null
-  }
-  const parsed = Number(value)
-  if (!Number.isSafeInteger(parsed) || parsed < 1) {
-    return null
-  }
-  return parsed
-}
-
-const DEFAULT_ERROR_MESSAGES = {
-  404: 'Route introuvable',
-  405: 'Méthode non autorisée',
-  501: 'Méthode non implémentée'
-}
+// Compteur monotone pour ne jamais réutiliser l'id d'un post supprimé
+let nextId = Math.max(0, ...posts.map((post) => post.id)) + 1
 
 app.use(async (ctx, next) => {
   try {
     await next()
-    if (ctx.status >= 400 && ctx.body === undefined) {
-      const status = ctx.status
-      ctx.status = status
-      ctx.body = {
-        error: DEFAULT_ERROR_MESSAGES[status] || 'Requête invalide'
-      }
+    if (ctx.status === 404 && ctx.body === undefined) {
+      ctx.status = 404
+      ctx.body = { error: 'Route introuvable' }
+    } else if (ctx.status === 405 && ctx.body === undefined) {
+      ctx.status = 405
+      ctx.body = { error: 'Méthode non autorisée' }
     }
   } catch (err) {
     const status = err.status || err.statusCode || 500
@@ -49,7 +35,7 @@ app.use(async (ctx, next) => {
 
 app.use(
   bodyParser({
-    onerror(err, ctx) {
+    onerror: (err, ctx) => {
       if (err.status === 413) {
         ctx.throw(413, 'Corps de requête trop volumineux')
       }
@@ -85,6 +71,27 @@ router.get('/posts/:id', (ctx) => {
 
   ctx.status = 200
   ctx.body = post
+})
+
+router.post('/posts', (ctx) => {
+  const error = validatePost(ctx.request.body)
+  if (error) {
+    ctx.throw(400, error)
+  }
+
+  const { postId, name, email, body } = ctx.request.body
+  const newPost = {
+    postId,
+    id: nextId++,
+    name,
+    email,
+    body
+  }
+
+  posts.push(newPost)
+  ctx.status = 201
+  ctx.set('Location', `/posts/${newPost.id}`)
+  ctx.body = newPost
 })
 
 app.use(router.routes())
