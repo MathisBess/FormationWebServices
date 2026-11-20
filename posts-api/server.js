@@ -94,6 +94,18 @@ router.post('/posts', (ctx) => {
   ctx.body = newPost
 })
 
+router.delete('/posts/:id', (ctx) => {
+  const id = parsePositiveInt(ctx.params.id)
+  const index = id !== null ? posts.findIndex((item) => item.id === id) : -1
+
+  if (index === -1) {
+    ctx.throw(404, 'Post introuvable')
+  }
+
+  posts.splice(index, 1)
+  ctx.status = 204
+})
+
 app.use(router.routes())
 app.use(router.allowedMethods())
 
